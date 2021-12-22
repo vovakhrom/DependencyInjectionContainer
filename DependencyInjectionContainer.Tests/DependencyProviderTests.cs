@@ -88,7 +88,8 @@ namespace DependencyInjectionContainer.Tests
             configuration.Register<SelfDependent, SelfDependent>();
             var container = new DependencyProvider(configuration);
 
-            Assert.ThrowsException<DependencyException>(() => container.Resolve<SelfDependent>());
+             var resolve = container.Resolve<SelfDependent>();
+             Assert.IsNotNull(resolve);
         }
 
         [TestMethod]
@@ -99,8 +100,11 @@ namespace DependencyInjectionContainer.Tests
             configuration.Register<Class2, Class2>();
             var container = new DependencyProvider(configuration);
 
-            Assert.ThrowsException<DependencyException>(() => container.Resolve<Class1>());
-            Assert.ThrowsException<DependencyException>(() => container.Resolve<Class2>());
+            var class1 = container.Resolve<Class1>();
+             var class2 = container.Resolve<Class2>();
+             Assert.IsNotNull(class1);
+             Assert.IsNotNull(class2);
+             Assert.IsNotNull(class1.class2);
         }
 
         [TestMethod]
@@ -136,6 +140,23 @@ namespace DependencyInjectionContainer.Tests
 
             Assert.IsInstanceOfType(service, typeof(ServiceImpl3<IRepository>));
             Assert.IsInstanceOfType(((ServiceImpl3<IRepository>)service).Repository, typeof(MyAnotherRepository));
+        }
+
+        [TestMethod]
+        public void ResolveCircularSingletnDependency()
+        {
+            var configuration = new DependenciesConfiguration();
+            configuration.Register(typeof(Class1), typeof(Class1), LifeType.Singleton);
+            configuration.Register(typeof(Class2), typeof(Class2), LifeType.Singleton); 
+            var container = new DependencyProvider(configuration);
+
+            var classFirst = container.Resolve<Class1>();
+            var classSecond = container.Resolve<Class2>();
+            var singltoneTest = container.Resolve<Class1>();
+            Assert.IsNotNull( classFirst);
+            Assert.IsNotNull(classFirst.class2);
+            Assert.IsNotNull(classSecond);
+            Assert.AreEqual(classFirst, singltoneTest);
         }
     }
 }

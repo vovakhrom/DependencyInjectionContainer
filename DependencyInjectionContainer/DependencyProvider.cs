@@ -56,10 +56,15 @@ namespace DependencyInjectionContainer
             return null;
         }
 
+       // public Stack<Dependency> Dependencies = new Stack<Dependency>();
+
         private object ResolveDependency(Dependency dependency)
         {
             if (_dependencyConfiguration.IsExcluded(dependency.Type))
-                throw new DependencyException($"Dependency type {dependency.Type} leads recursion!");
+            {
+               // Dependencies.Push(dependency);
+                return null;
+            }
             _dependencyConfiguration.ExcludeType(dependency.Type);
             object result = null;
             if (dependency.LifeType == LifeType.InstancePerDependency)
