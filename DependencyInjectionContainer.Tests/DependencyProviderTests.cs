@@ -88,8 +88,7 @@ namespace DependencyInjectionContainer.Tests
             configuration.Register<SelfDependent, SelfDependent>();
             var container = new DependencyProvider(configuration);
 
-             var resolve = container.Resolve<SelfDependent>();
-             Assert.IsNotNull(resolve);
+            Assert.ThrowsException<DependencyException>(() => container.Resolve<SelfDependent>());
         }
 
         [TestMethod]
@@ -99,12 +98,9 @@ namespace DependencyInjectionContainer.Tests
             configuration.Register<Class1, Class1>();
             configuration.Register<Class2, Class2>();
             var container = new DependencyProvider(configuration);
-
-            var class1 = container.Resolve<Class1>();
-             var class2 = container.Resolve<Class2>();
-             Assert.IsNotNull(class1);
-             Assert.IsNotNull(class2);
-             Assert.IsNotNull(class1.class2);
+            
+            Assert.ThrowsException<DependencyException>(() => container.Resolve<Class1>());
+            Assert.ThrowsException<DependencyException>(() => container.Resolve<Class2>());
         }
 
         [TestMethod]
@@ -152,11 +148,88 @@ namespace DependencyInjectionContainer.Tests
 
             var classFirst = container.Resolve<Class1>();
             var classSecond = container.Resolve<Class2>();
-            var singltoneTest = container.Resolve<Class1>();
-            Assert.IsNotNull( classFirst);
+            var singltoneTestFirst = container.Resolve<Class1>();
+            var singltoneTestSecond = container.Resolve<Class2>();
+            
+            Assert.IsNotNull(classFirst);
             Assert.IsNotNull(classFirst.class2);
+            Assert.IsNotNull(classFirst.class2.class1);
+
             Assert.IsNotNull(classSecond);
-            Assert.AreEqual(classFirst, singltoneTest);
+            Assert.IsNotNull(classSecond.class1);
+            Assert.IsNotNull(classSecond.class1.class2);
+            
+            Assert.AreEqual(classFirst, singltoneTestFirst);
+            Assert.AreEqual(classSecond, singltoneTestSecond);
+        }
+        
+        [TestMethod]
+        public void ResolveCircularThreeLevelSingletnDependency()
+        {
+            var configuration = new DependenciesConfiguration();
+            configuration.Register(typeof(FirstClass), typeof(FirstClass), LifeType.Singleton);
+            configuration.Register(typeof(SecondClass), typeof(SecondClass), LifeType.Singleton); 
+            configuration.Register(typeof(ThirdClass), typeof(ThirdClass), LifeType.Singleton); 
+            var container = new DependencyProvider(configuration);
+
+            var classFirst = container.Resolve<FirstClass>();
+            var classSecond = container.Resolve<SecondClass>();
+            var classThird = container.Resolve<ThirdClass>();
+            
+            Assert.IsNotNull(classFirst);
+            Assert.IsNotNull(classFirst.SecondClass);
+            Assert.IsNotNull(classFirst.SecondClass.ThirdClass);
+            Assert.IsNotNull(classFirst.SecondClass.ThirdClass.FirstClass);
+            
+            Assert.IsNotNull(classSecond);
+            Assert.IsNotNull(classSecond.ThirdClass);
+            Assert.IsNotNull(classSecond.ThirdClass.FirstClass);
+            Assert.IsNotNull(classSecond.ThirdClass.FirstClass.SecondClass);
+            
+            Assert.IsNotNull(classThird);
+            Assert.IsNotNull(classThird.FirstClass);
+            Assert.IsNotNull(classThird.FirstClass.SecondClass);
+            Assert.IsNotNull(classThird.FirstClass.SecondClass.ThirdClass);
+            
+            var classFirstSingleton = container.Resolve<FirstClass>();
+            var classSecondSingleton = container.Resolve<SecondClass>();
+            var classThirdSingleton = container.Resolve<ThirdClass>();
+            
+            Assert.AreSame(classFirst, classFirstSingleton);
+            Assert.AreSame(classSecond, classSecondSingleton);
+            Assert.AreSame(classThird, classThirdSingleton);
+        }
+        
+        [TestMethod]
+        public void ResolveCircularThreeLevelMultipleSingletnDependency()
+        {
+            var configuration = new DependenciesConfiguration();
+            configuration.Register(typeof(HardFirst), typeof(HardFirst), LifeType.Singleton);
+            configuration.Register(typeof(HardSecond), typeof(HardSecond), LifeType.Singleton); 
+            configuration.Register(typeof(HardThird), typeof(HardThird), LifeType.Singleton); 
+            var container = new DependencyProvider(configuration);
+
+            var classFirst = container.Resolve<HardFirst>();
+            var classSecond = container.Resolve<HardSecond>();
+            var classThird = container.Resolve<HardThird>();
+            
+            Assert.IsNotNull(classFirst);
+            Assert.IsNotNull(classFirst.HardSecond);
+            Assert.IsNotNull(classFirst.HardSecond.HardFirst); 
+            Assert.IsNotNull(classFirst.HardSecond.HardThird);
+            Assert.IsNotNull(classFirst.HardSecond.HardThird.HardFirst);
+            
+            Assert.IsNotNull(classSecond);
+            Assert.IsNotNull(classSecond.HardFirst);
+            Assert.IsNotNull(classSecond.HardFirst.HardSecond);
+            Assert.IsNotNull(classSecond.HardThird);
+            Assert.IsNotNull(classSecond.HardThird.HardFirst);
+            Assert.IsNotNull(classSecond.HardThird.HardFirst.HardSecond);
+            
+            Assert.IsNotNull(classThird);
+            Assert.IsNotNull(classThird.HardFirst);
+            Assert.IsNotNull(classThird.HardFirst.HardSecond);
+            Assert.IsNotNull(classThird.HardFirst.HardSecond.HardThird);
         }
     }
 }

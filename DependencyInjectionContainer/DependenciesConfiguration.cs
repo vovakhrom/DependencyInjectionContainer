@@ -20,6 +20,11 @@ namespace DependencyInjectionContainer
             _excludedTypes.Remove(type);
         }
 
+        internal void ClearExcluded()
+        {
+            _excludedTypes.Clear();
+        }
+
         internal bool IsExcluded(Type type)
         {
             return _excludedTypes.Contains(type);

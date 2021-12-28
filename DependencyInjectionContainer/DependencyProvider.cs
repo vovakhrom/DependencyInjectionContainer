@@ -1,15 +1,25 @@
-﻿using DependencyInjectionContainer.Attribute;
-using DependencyInjectionContainer.Exception;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using Castle.Core.Internal;
+using DependencyInjectionContainer.Attribute;
+using DependencyInjectionContainer.Exception;
+using Moq;
 
 namespace DependencyInjectionContainer
 {
     public class DependencyProvider
     {
         private readonly DependenciesConfiguration _dependencyConfiguration;
+    //лок определенного блока кода
+        private readonly object _syncObject = new object();
+        //когда нужно заменять null на другие значения 
+        public static Queue<Dependency> Dependencies = new Queue<Dependency>();
+        //пересоздать все без null
+        public static List<Dependency> resolvedDependencies = new List<Dependency>();
+        //если true можно перестраивать корень
+        public static bool isCircularShouldBeRecreate;
 
         public DependencyProvider(DependenciesConfiguration dependencyConfiguration)
         {
@@ -55,16 +65,19 @@ namespace DependencyInjectionContainer
 
             return null;
         }
-
-       // public Stack<Dependency> Dependencies = new Stack<Dependency>();
-
+        
         private object ResolveDependency(Dependency dependency)
         {
             if (_dependencyConfiguration.IsExcluded(dependency.Type))
             {
-               // Dependencies.Push(dependency);
-                return null;
+                if (dependency.LifeType == LifeType.InstancePerDependency)
+                {
+                    throw new DependencyException("Circular dependency!");
+                }
+                 
+                return dependency.Instance;
             }
+
             _dependencyConfiguration.ExcludeType(dependency.Type);
             object result = null;
             if (dependency.LifeType == LifeType.InstancePerDependency)
@@ -73,10 +86,11 @@ namespace DependencyInjectionContainer
             }
             else if (dependency.LifeType == LifeType.Singleton)
             {
-                lock (dependency)
+                lock (_syncObject)
                 {
-                    if (dependency.Instance == null)
+                    if (isCircularShouldBeRecreate || dependency.Instance == null)
                     {
+                        isCircularShouldBeRecreate = false;
                         result = Creator.GetInstance(dependency.Type, _dependencyConfiguration);
                         dependency.Instance = result;
                     }
@@ -88,9 +102,10 @@ namespace DependencyInjectionContainer
             }
             _dependencyConfiguration.RemoveFromExcluded(dependency.Type);
 
+            resolvedDependencies.Add(dependency);
             return result;
         }
-
+        
         private Dependency GetNamedDependency(Type @interface, object key)
         {
             if (_dependencyConfiguration.TryGetAll(@interface, out var namedDependencies))
@@ -143,10 +158,45 @@ namespace DependencyInjectionContainer
             {
                 return ResolveAll(@interface.GetGenericArguments()[0]);
             }
+
             var dependency = GetDependency(@interface, key);
+            var result = ResolveDependency(dependency);
+            if (result == null)
+            {
+                //если пустая очередь или крайний элемент очереди не такой же
+                if (Dependencies.IsNullOrEmpty() || Dependencies.Peek().Type != dependency.Type)
+                    Dependencies.Enqueue(dependency);
+                //циркулярка и на это время она null
+                return null;
+            }
 
-            return ResolveDependency(dependency);
+            //очищаем , чтобы мы могли использовать циркулярные типы
+            _dependencyConfiguration.ClearExcluded();
+            //если нет циркурной зависимости
+            if (Dependencies.IsNullOrEmpty())
+            {
+                return result;
+            }
+
+            //перестройка дерева с первой циркулярки
+            if (dependency.Type != Dependencies.Peek().Type)
+            {
+                return result;
+            }
+
+            var nullCircular = Dependencies.Dequeue();
+            //очистка все не циркулярные зависим
+            foreach (var resolvedDependency in resolvedDependencies)
+            {
+                if (resolvedDependency.Type != nullCircular.Type)
+                {
+                    resolvedDependency.Instance = null;
+                }
+            }
+
+            isCircularShouldBeRecreate = true;
+
+            return Resolve(@interface);
         }
-
     }
 }
